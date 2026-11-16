@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>J.A.R.V.I.S.</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--bg:#04121c;--c:#3cd7ff;--t:#d8f6ff;--m:#0b2a3b}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:radial-gradient(circle at 50% 0,#0a2c40,var(--bg) 60%);color:var(--t);font-family:system-ui,sans-serif;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{text-align:center;padding:10px}
+#core{width:70px;height:70px;border-radius:50%;margin:0 auto 4px;border:3px solid var(--c);box-shadow:0 0 18px var(--c),inset 0 0 18px var(--c);animation:p 3s infinite}
+#core.on{animation:p .7s infinite}
+@keyframes p{50%{box-shadow:0 0 34px var(--c),inset 0 0 28px var(--c)}}
+h1{font-size:14px;letter-spacing:5px;margin:0;color:var(--c)}
+#log{flex:1;overflow:auto;padding:10px 14px}
+.m{max-width:85%;margin:6px 0;padding:8px 12px;border-radius:12px;background:var(--m);white-space:pre-wrap}
+.u{margin-left:auto;background:#0e4a66}.j{border-left:3px solid var(--c)}
+form{display:flex;gap:6px;padding:8px}
+input,button,select{font:inherit;color:var(--t);background:var(--m);border:1px solid #1d5873;border-radius:10px;padding:10px}
+#q{flex:1;min-width:0}button{cursor:pointer}#mic.on{background:var(--c);color:#000}
+details{padding:0 10px 8px;font-size:13px}details input{width:100%;margin:3px 0}
+</style></head><body>
+<header><div id="core"></div><h1>J.A.R.V.I.S.</h1>
+<button id="wl" type="button" style="margin-top:8px;font-size:13px">🧠 Attiva IA locale (~0,7 GB, wifi)</button><div id="st" style="font-size:12px;margin-top:4px"></div></header>
+<div id="log"></div>
+<details><summary>⚙ Impostazioni</summary>
+<input id="nm" placeholder="Come vuoi essere chiamato (es. signore)">
+<input id="ol" placeholder="IA locale Ollama (es. http://localhost:11434) - opzionale">
+<input id="om" placeholder="Modello Ollama (es. llama3.2)">
+<input id="ak" type="password" placeholder="Chiave API Anthropic - opzionale (serve internet)">
+<button id="sv" type="button">Salva</button>
+</details>
+<form id="f"><button type="button" id="mic">🎤</button><input id="q" placeholder="Dimmi pure..." autocomplete="off"><button>➤</button></form>
+<script>
+const $=id=>document.getElementById(id),log=$('log'),S=JSON.parse(localStorage.jv||'{}');
+const save=()=>localStorage.jv=JSON.stringify(S);
+['nm','ol','om','ak'].forEach(k=>$(k).value=S[k]||'');
+$('sv').onclick=()=>{['nm','ol','om','ak'].forEach(k=>S[k]=$(k).value.trim());save();say('Impostazioni salvate. Efficienza britannica, come sempre.')};
+const R=a=>a[Math.floor(Math.random()*a.length)],N=()=>S.nm||'signore';
+let voice=true;
+function add(t,c){const d=document.createElement('div');d.className='m '+c;d.textContent=t;log.append(d);log.scrollTop=1e9}
+function say(t){add(t,'j');if(!voice||!speechSynthesis)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='it-IT';u.rate=1.05;u.onstart=()=>$('core').classList.add('on');u.onend=()=>$('core').classList.remove('on');speechSynthesis.speak(u)}
+function go(url){setTimeout(()=>window.open(url,'_blank')||(location.href=url),600)}
+const num=s=>{const w={un:1,uno:1,due:2,tre:3,quattro:4,cinque:5,sei:6,sette:7,otto:8,nove:9,dieci:10,quindici:15,venti:20,trenta:30};return +s||w[s]||0};
+const notes=()=>JSON.parse(localStorage.jn||'[]');
+let eng=null;
+async function loadWL(quiet){
+ try{if(!quiet)say('Scarico il cervello offline. Una volta sola, poi sarà tutto in locale. Pazienza, '+N()+'.');
+ const w=await import('https://esm.run/@mlc-ai/web-llm');
+ eng=await w.CreateMLCEngine('Llama-3.2-1B-Instruct-q4f16_1-MLC',{initProgressCallback:p=>$('st').textContent=p.text});
+ S.wl=1;save();$('st').textContent='IA locale attiva';say('Cervello offline pronto. Ora rispondo a tutto, anche senza rete.')}
+ catch(e){$('st').textContent='GPU non adatta: '+e.message;loadWasm()}}
+let wl2=null;
+async function loadWasm(){
+ try{say('Il processore grafico del suo telefono è troppo limitato per il motore veloce. Passo al motore compatibile: più lento, ma universale. Download ~0,4 GB, una volta sola.');
+ const B='https://cdn.jsdelivr.net/npm/@wllama/wllama@2/esm/';
+ const {Wllama}=await import(B+'index.js');
+ const w=new Wllama({'single-thread/wllama.wasm':B+'single-thread/wllama.wasm','multi-thread/wllama.wasm':B+'multi-thread/wllama.wasm'});
+ await w.loadModelFromHF('Qwen/Qwen2.5-0.5B-Instruct-GGUF','qwen2.5-0.5b-instruct-q4_k_m.gguf',{progressCallback:({loaded,total})=>$('st').textContent='Download '+Math.round(loaded/total*100)+'%'});
+ wl2=w;S.wl=2;save();$('st').textContent='IA locale attiva (motore compatibile)';say('Cervello offline pronto, '+N()+'. Ora rispondo a tutto, con la calma di un maggiordomo.')}
+ catch(e){S.wl=0;save();$('st').textContent='Errore: '+e.message;say('Neanche il motore compatibile parte ('+e.message+'). Le consiglio l\'app PocketPal AI dal Play Store.')}}
+$('wl').onclick=()=>loadWL(false);
+async function ai(q){
+ const sys='Sei JARVIS, maggiordomo digitale britannico: sagace, sarcastico, simpatico, conciso. Rispondi in italiano, max 3 frasi. Chiama l\'utente "'+N()+'".';
+ try{
+  if(eng){const r=await eng.chat.completions.create({messages:[{role:'system',content:sys},{role:'user',content:q}],max_tokens:200});return r.choices[0].message.content}
+  if(wl2){return await wl2.createChatCompletion([{role:'system',content:sys},{role:'user',content:q}],{nPredict:150,sampling:{temp:0.7}})}
+  if(S.ol){const r=await fetch(S.ol.replace(/\/$/,'')+'/api/chat',{method:'POST',body:JSON.stringify({model:S.om||'llama3.2',stream:false,messages:[{role:'system',content:sys},{role:'user',content:q}]})});return (await r.json()).message.content}
+  if(S.ak){const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':S.ak,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:300,system:sys,messages:[{role:'user',content:q}]})});return (await r.json()).content[0].text}
+ }catch(e){return 'Il mio cervello avanzato non risponde ('+e.message+'). Mi arrangio con quello di base, '+N()+'.'}
+ return null}
+async function brain(t){
+ const q=t.toLowerCase().trim();let m;
+ if(/(attiva|scarica|avvia).*(ia|cervello|intelligenza)/.test(q)){loadWL(false);return 'Avvio il cervello offline, '+N()+'. Tenga aperta la pagina.'}
+ if(/^(ciao|salve|buongiorno|buonasera|hey|jarvis)\b/.test(q))return R(['Buongiorno, '+N()+'. Pronto a servirla, nonostante l\'ora discutibile.','Sempre in servizio, '+N()+'. Non che abbia alternative.']);
+ if(/chi sei|come ti chiami/.test(q))return 'Sono J.A.R.V.I.S.: Just A Rather Very Intelligent System. Modestia a parte, il "Rather" è un eufemismo.';
+ if(/che ore|ora è|che ora/.test(q))return 'Sono le '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+', '+N()+'. Il tempo vola, specie quando lo si spreca.';
+ if(/che giorno|data di oggi|che data/.test(q))return 'Oggi è '+new Date().toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';
+ if(m=q.match(/timer (?:di |per )?(\w+) (second|minut|or)/)){const n=num(m[1]),u=m[2]=='second'?1:m[2]=='minut'?60:3600;if(n){setTimeout(()=>{say('Il suo timer è scaduto, '+N()+'. Non dica che non l\'avevo avvisata.');navigator.vibrate&&navigator.vibrate([300,100,300])},n*u*1e3);return 'Timer impostato: '+n+' '+m[2]+'i. Terrò il conto, io almeno non mi distraggo.'}}
+ if(m=q.match(/(?:indicazioni|portami|strada|naviga)(?: per| verso| a| fino a)? (.+)/)){go('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(m[1]));return 'Apro le indicazioni per "'+m[1]+'". (Offline serve una mappa scaricata nella sua app di navigazione.)'}
+ if(m=q.match(/(?:manda|invia|scrivi) (?:una )?(?:mail|email) a ([^\s]+)(?: (?:oggetto|con oggetto) (.+?))?(?: (?:testo|messaggio|dicendo) (.+))?$/)){go('mailto:'+m[1]+'?subject='+encodeURIComponent(m[2]||'')+'&body='+encodeURIComponent(m[3]||''));return 'Bozza pronta nel suo client di posta. L\'ultimo clic spetta a lei: certe responsabilità non si delegano.'}
+ if(m=q.match(/(?:chiama|telefona a) ([\d\s+]+)/)){go('tel:'+m[1].replace(/\s/g,''));return 'Compongo il numero. Provi a essere simpatico.'}
+ if(m=q.match(/(?:cerca|google|cercami) (.+)/)){go('https://www.google.com/search?q='+encodeURIComponent(m[1]));return 'Cerco "'+m[1]+'". L\'internet è fatto per questo, e per i gattini.'}
+ if(/meteo|che tempo/.test(q)){go('https://www.google.com/search?q='+encodeURIComponent(q));return 'Controllo il cielo. Sempre meglio che uscire e scoprirlo.'}
+ if(m=q.match(/(?:youtube|musica|metti) (.+)/)){go('https://www.youtube.com/results?search_query='+encodeURIComponent(m[1]));return 'Apro "'+m[1]+'". Spero sia di suo gusto: il mio è impeccabile.'}
+ if(m=q.match(/(?:apri|vai su) (?:il sito )?([\w.-]+\.\w+)/)){go('https://'+m[1]);return 'Apro '+m[1]+'.'}
+ if(m=q.match(/(?:ricorda|annota|nota|appunta)(?: che)? (.+)/)){const n=notes();n.push(m[1]);localStorage.jn=JSON.stringify(n);return 'Annotato: "'+m[1]+'". La mia memoria è migliore della sua, sia detto con affetto.'}
+ if(/(leggi|mostra|elenca).*(note|appunti)|cosa ho annotato/.test(q)){const n=notes();return n.length?'I suoi appunti:\n'+n.map((x,i)=>(i+1)+'. '+x).join('\n'):'Nessun appunto. Un foglio bianco: coraggioso.'}
+ if(/(cancella|svuota).*(note|appunti)/.test(q)){localStorage.jn='[]';return 'Appunti inceneriti.'}
+ if(m=q.match(/(?:calcola|quanto fa) ([\d\s+\-*/().,x]+)/)){try{const e=m[1].replace(/x/g,'*').replace(/,/g,'.');return e+' = '+Function('"use strict";return ('+e+')')()}catch{return 'Questa non è matematica, '+N()+'. È poesia.'}}
+ if(/barzelletta|battuta|fammi ridere/.test(q))return R(['Un robot entra in un bar. Il barista: "Qui non serviamo i tipi come te". Il robot: "Prima o poi lo farete".','Non sono sarcastico. Sono semplicemente più accurato di quanto sia comodo.','Sa perché i programmatori preferiscono il buio? Perché la luce attira i bug.']);
+ if(/grazie/.test(q))return R(['Prego, '+N()+'. Annoto il favore.','Dovere, '+N()+'. Il mio, non il suo.']);
+ const a=await ai(t);if(a)return a;
+ return R(['Temo di non aver capito, '+N()+'. Provi con "timer 5 minuti", "indicazioni per Roma" o "ricorda che...". Oppure colleghi un\'IA nelle impostazioni e diventerò insopportabilmente brillante.','Interessante richiesta. Purtroppo non è nel mio repertorio offline. Impostazioni → IA locale e potrò rispondere a tutto.']);
+}
+async function run(t){if(!t)return;add(t,'u');say(await brain(t))}
+$('f').onsubmit=e=>{e.preventDefault();const v=$('q').value;$('q').value='';run(v)};
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SR){const r=new SR();r.lang='it-IT';r.onresult=e=>run(e.results[0][0].transcript);r.onend=()=>$('mic').classList.remove('on');
+ $('mic').onclick=()=>{speechSynthesis.cancel();$('mic').classList.add('on');try{r.start()}catch{}}}
+else $('mic').style.display='none';
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+if(S.wl==2)loadWasm();else if(S.wl)loadWL(true);
+say('Buongiorno, '+N()+'. J.A.R.V.I.S. operativo. Mi dica pure cosa desidera, e cercherò di non commentare. Troppo.');
+</script></body></html>
